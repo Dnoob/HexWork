@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 20 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 15%;
+
+    --primary: 38 90% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 15% 93%;
+    --secondary-foreground: 20 10% 25%;
+
+    --muted: 35 10% 94%;
+    --muted-foreground: 20 5% 45%;
+
+    --accent: 35 15% 93%;
+    --accent-foreground: 20 10% 25%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 30 10% 90%;
+    --input: 30 10% 88%;
+    --ring: 38 90% 50%;
+
+    --radius: 0.625rem;
+
+    --sidebar: 35 15% 96%;
+    --sidebar-foreground: 20 10% 25%;
+    --sidebar-accent: 35 12% 92%;
+    --sidebar-accent-foreground: 20 10% 15%;
+    --sidebar-border: 30 10% 90%;
+
+    --accent-green: 160 50% 48%;
+    --accent-blue: 210 70% 58%;
+    --accent-lavender: 260 50% 65%;
+    --accent-coral: 12 80% 62%;
+  }
+
+  .dark {
+    --background: 25 10% 10%;
+    --foreground: 30 15% 92%;
+
+    --card: 25 8% 14%;
+    --card-foreground: 30 15% 92%;
+
+    --popover: 25 8% 14%;
+    --popover-foreground: 30 15% 92%;
+
+    --primary: 38 85% 55%;
+    --primary-foreground: 25 10% 10%;
+
+    --secondary: 25 8% 18%;
+    --secondary-foreground: 30 10% 80%;
+
+    --muted: 25 8% 18%;
+    --muted-foreground: 25 8% 55%;
+
+    --accent: 25 8% 20%;
+    --accent-foreground: 30 15% 92%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 25 8% 20%;
+    --input: 25 8% 22%;
+    --ring: 38 85% 55%;
+
+    --sidebar: 25 10% 8%;
+    --sidebar-foreground: 30 10% 80%;
+    --sidebar-accent: 25 8% 15%;
+    --sidebar-accent-foreground: 30 15% 92%;
+    --sidebar-border: 25 8% 18%;
+
+    --accent-green: 160 45% 55%;
+    --accent-blue: 210 65% 65%;
+    --accent-lavender: 260 45% 70%;
+    --accent-coral: 12 70% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* 修复 Radix ScrollArea 内部 display:table 导致内容撑宽溢出 */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+}
+
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* 消息中的 Markdown 样式 */
+.message-content p {
+  @apply my-2 leading-relaxed;
+}
+
+.message-content p:first-child {
+  @apply mt-0;
+}
+
+.message-content p:last-child {
+  @apply mb-0;
+}
+
+.message-content ul, .message-content ol {
+  @apply ml-5 my-2;
+}
+
+.message-content ul {
+  @apply list-disc;
+}
+
+.message-content ol {
+  @apply list-decimal;
+}
+
+.message-content li {
+  @apply my-0.5;
+}
+
+.message-content pre {
+  @apply my-0;
+}
+
+.message-content code {
+  @apply text-[13px];
+}
+
+.message-content hr {
+  @apply my-4 border-border;
+}
+
+.message-content h1, .message-content h2, .message-content h3 {
+  @apply font-semibold mt-4 mb-2;
+}
+
+.message-content h1 { @apply text-lg; }
+.message-content h2 { @apply text-base; }
+.message-content h3 { @apply text-sm; }
+
+/* 噪点纹理背景 */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}

@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-electron
+release
+*.db
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+.superpowers/
+
+# 内部文档
+CLAUDE.md
+docs/plans/
