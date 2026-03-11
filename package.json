@@ -82,8 +82,16 @@
       "dist-electron/**/*",
       "dist/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "resources/icon-256.png"
     },
     "nsis": {
       "oneClick": false,

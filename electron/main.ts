@@ -17,8 +17,21 @@ let isQuitting = false;
 // 判断是否为开发模式
 const isDev = !app.isPackaged;
 
+// 单实例锁：防止重复打开多个应用
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
+
+// 获取资源文件路径（开发模式和打包模式路径不同）
+const getResourcePath = (filename: string): string => {
+  return isDev
+    ? path.join(__dirname, '../resources', filename)
+    : path.join(process.resourcesPath, filename);
+};
+
 const createWindow = (): void => {
-  const iconPath = path.join(__dirname, isDev ? '../resources/icon-256.png' : '../resources/icon-256.png');
+  const iconPath = getResourcePath('icon-256.png');
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -56,6 +69,15 @@ const createWindow = (): void => {
   });
 };
 
+// 第二个实例启动时，聚焦已有窗口
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (!mainWindow.isVisible()) mainWindow.show();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
 // 应用就绪后初始化
 app.whenReady().then(() => {
   // 初始化数据库
@@ -79,7 +101,7 @@ app.whenReady().then(() => {
   ipcMain.on('window:close', () => mainWindow?.close());
 
   // 创建系统托盘
-  const trayIconPath = path.join(__dirname, isDev ? '../resources/icon-32.png' : '../resources/icon-32.png');
+  const trayIconPath = getResourcePath('icon-32.png');
   const trayIcon = nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 });
   tray = new Tray(trayIcon);
   tray.setToolTip('HexWork');
