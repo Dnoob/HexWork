@@ -153,28 +153,34 @@ class BrowserController {
       fs.mkdirSync(userDataDir, { recursive: true });
     }
 
-    this.browser = await puppeteer.launch({
+    // 清理可能残留的状态
+    await this.close();
+
+    const launchOptions = {
       executablePath,
       headless: false,
       defaultViewport: null,  // viewport 跟随窗口大小，避免下半部分白屏
-      userDataDir,
       args: [
-        // 隐藏自动化控制提示栏
         '--disable-infobars',
-        // 禁用 AutomationControlled 特性（navigator.webdriver 检测源头）
         '--disable-blink-features=AutomationControlled',
-        // 排除自动化开关（去掉 "Chrome is being controlled by..." 横幅）
         '--enable-automation=false',
-        // 禁用扩展沙箱以兼容部分环境
         '--no-first-run',
         '--no-default-browser-check',
-        // 禁用会话恢复提示和崩溃恢复气泡
         '--disable-session-crashed-bubble',
         '--hide-crash-restore-bubble',
       ],
-      // 排除默认的自动化标志
       ignoreDefaultArgs: ['--enable-automation'],
-    });
+    };
+
+    try {
+      // 优先使用持久化目录（保留登录态）
+      this.browser = await puppeteer.launch({ ...launchOptions, userDataDir });
+    } catch {
+      // 持久化目录被占用（其他浏览器实例运行中），用临时目录重试
+      const tempDir = path.join(os.tmpdir(), `hexwork-browser-${Date.now()}`);
+      fs.mkdirSync(tempDir, { recursive: true });
+      this.browser = await puppeteer.launch({ ...launchOptions, userDataDir: tempDir });
+    }
 
     const pages = await this.browser.pages();
     this.page = pages[0] || await this.browser.newPage();
