@@ -72,6 +72,24 @@
     "vite-plugin-electron": "^0.28.8",
     "vite-plugin-electron-renderer": "^0.14.6"
   },
+  "build": {
+    "appId": "com.hexwork.app",
+    "productName": "HexWork",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
