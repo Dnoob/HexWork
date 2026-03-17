@@ -6,7 +6,7 @@ import path from 'path';
 
 // 需要 externalize 的模块（原生模块 + 动态 require 复杂的包）
 // .npmrc 设置 shamefully-hoist=true 确保 electron-builder 能打包所有传递依赖
-const externalDeps = ['better-sqlite3', 'rebrowser-puppeteer-core', 'bufferutil', 'utf-8-validate', 'adm-zip'];
+const externalDeps = ['better-sqlite3', 'bufferutil', 'utf-8-validate', 'adm-zip'];
 
 // 匹配包名及其所有子路径
 const isExternal = (id: string) => {

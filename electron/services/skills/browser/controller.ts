@@ -1,6 +1,9 @@
 // 浏览器控制器：基于 puppeteer-core + CDP Accessibility Tree
-import puppeteer from 'rebrowser-puppeteer-core';
-import type { Browser, Page, CDPSession } from 'rebrowser-puppeteer-core';
+import puppeteer from 'puppeteer-core';
+import type { Browser, Page, CDPSession } from 'puppeteer-core';
+import { spawn } from 'child_process';
+import net from 'net';
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -119,13 +122,61 @@ const INTERACTIVE_ROLES = new Set([
   'tab', 'option', 'treeitem',
 ]);
 
+// 找一个可用的端口
+const findAvailablePort = (startPort: number): Promise<number> => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(startPort, '127.0.0.1', () => {
+      const port = (server.address() as net.AddressInfo).port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      resolve(findAvailablePort(startPort + 1));
+    });
+  });
+};
+
+// 轮询等待浏览器调试端口就绪，返回 WebSocket URL
+const waitForBrowserReady = (port: number, timeoutMs = 30000): Promise<string> => {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const poll = () => {
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error(`等待浏览器就绪超时(${timeoutMs}ms), port=${port}`));
+        return;
+      }
+      const req = http.get(`http://127.0.0.1:${port}/json/version`, (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.webSocketDebuggerUrl) {
+              resolve(json.webSocketDebuggerUrl);
+            } else {
+              setTimeout(poll, 300);
+            }
+          } catch {
+            setTimeout(poll, 300);
+          }
+        });
+      });
+      req.on('error', () => setTimeout(poll, 300));
+      req.setTimeout(3000, () => {
+        req.destroy();
+        setTimeout(poll, 300);
+      });
+    };
+    poll();
+  });
+};
+
 class BrowserController {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private cdp: CDPSession | null = null;
   // 当前页面的 AX 节点映射（idx → AXNode）
   private axNodes: Map<number, AXNode> = new Map();
-
   get isOpen(): boolean {
     return this.browser !== null && this.browser.connected;
   }
@@ -138,61 +189,75 @@ class BrowserController {
     }
   }
 
-  // 启动浏览器
+  // 启动浏览器：手动 spawn + 固定端口 + HTTP 轮询 + puppeteer.connect
+  // 不依赖 puppeteer.launch()，避免打包后 Windows GUI 应用 stdio/进程 relaunch 问题
   async launch(): Promise<void> {
     if (this.browser?.connected) return;
 
     const executablePath = findBrowserPath();
     if (!executablePath) {
-      throw new Error('未找到 Chrome 或 Edge 浏览器');
+      throw new Error('未找到 Chrome 或 Edge 浏览器，请确认已安装 Chrome 或 Edge');
     }
 
-    // 使用持久化用户数据目录，保留登录态和偏好
     const userDataDir = path.join(app.getPath('userData'), 'browser-profile');
     if (!fs.existsSync(userDataDir)) {
       fs.mkdirSync(userDataDir, { recursive: true });
     }
 
-    // 清理可能残留的状态
     await this.close();
 
-    const launchOptions = {
-      executablePath,
-      headless: false,
-      defaultViewport: null,  // viewport 跟随窗口大小，避免下半部分白屏
-      args: [
-        '--disable-infobars',
-        '--disable-blink-features=AutomationControlled',
-        '--enable-automation=false',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-session-crashed-bubble',
-        '--hide-crash-restore-bubble',
-      ],
-      ignoreDefaultArgs: ['--enable-automation'],
-    };
+    // 清理 Electron 注入的环境变量
+    const cleanEnv = { ...process.env };
+    delete cleanEnv['ELECTRON_RUN_AS_NODE'];
+    delete cleanEnv['ELECTRON_NO_ASAR'];
 
+    // 找一个可用端口
+    const port = await findAvailablePort(9222);
+
+    const browserArgs = [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${userDataDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-session-crashed-bubble',
+      '--hide-crash-restore-bubble',
+    ];
+
+    // 启动浏览器，不跟踪进程生命周期（Windows 上进程可能 relaunch）
+    spawn(executablePath, browserArgs, {
+      detached: true,
+      stdio: 'ignore',
+      env: cleanEnv,
+    }).unref();
+
+    // 轮询等待浏览器调试端口就绪
+    let wsUrl: string;
     try {
-      // 优先使用持久化目录（保留登录态）
-      this.browser = await puppeteer.launch({ ...launchOptions, userDataDir });
-    } catch {
-      // 持久化目录被占用（其他浏览器实例运行中），用临时目录重试
-      const tempDir = path.join(os.tmpdir(), `hexwork-browser-${Date.now()}`);
-      fs.mkdirSync(tempDir, { recursive: true });
-      this.browser = await puppeteer.launch({ ...launchOptions, userDataDir: tempDir });
+      wsUrl = await waitForBrowserReady(port, 30000);
+    } catch (err) {
+      throw new Error(
+        `浏览器启动失败 [exe: ${executablePath} | port: ${port} | packaged: ${app.isPackaged}]。` +
+        `${(err as Error).message}`
+      );
     }
+
+    // 通过 WebSocket 连接浏览器
+    this.browser = await puppeteer.connect({
+      browserWSEndpoint: wsUrl,
+      defaultViewport: null,
+    });
 
     const pages = await this.browser.pages();
     this.page = pages[0] || await this.browser.newPage();
 
-    // 关闭多余的恢复标签页（避免 session 恢复导致重复页面）
+    // 关闭多余的恢复标签页
     for (let i = 1; i < pages.length; i++) {
       await pages[i].close().catch(() => {});
     }
 
     this.cdp = await this.page.createCDPSession();
 
-    // 注入反自动化检测脚本（在每个页面加载前执行）
+    // 注入反自动化检测脚本
     await this.cdp.send('Page.addScriptToEvaluateOnNewDocument', {
       source: STEALTH_SCRIPT,
     });
@@ -200,6 +265,14 @@ class BrowserController {
     // 启用 Accessibility 和 DOM 域
     await this.cdp.send('Accessibility.enable');
     await this.cdp.send('DOM.enable');
+
+    // 浏览器断开时清理
+    this.browser.on('disconnected', () => {
+      this.browser = null;
+      this.page = null;
+      this.cdp = null;
+      this.axNodes.clear();
+    });
   }
 
   // 确保浏览器和页面已就绪
